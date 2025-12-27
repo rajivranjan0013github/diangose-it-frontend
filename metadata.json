@@ -1,0 +1,5 @@
+{
+  "name": "MedSim Analytics Dashboard",
+  "description": "A comprehensive analytics dashboard for medical simulation gameplay, featuring user demographics, performance tracking, and Gemini-powered insights based on Mongoose schemas.",
+  "requestFramePermissions": []
+}
