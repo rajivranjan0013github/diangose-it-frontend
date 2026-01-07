@@ -126,3 +126,25 @@ export const fetchCasesByCategory = async (category: string): Promise<Case[]> =>
     }
     return response.json();
 };
+
+export interface ActiveUsersByDateResponse {
+    date: string;
+    users: Array<{
+        _id: string;
+        name: string;
+        email: string;
+        platform: string;
+        isPremium: boolean;
+        createdAt: string;
+        gamesPlayedOnDate: number;
+    }>;
+    count: number;
+}
+
+export const fetchActiveUsersByDate = async (date: string): Promise<ActiveUsersByDateResponse> => {
+    const response = await fetch(`${API_URL}/gameplays/users-by-date/${date}`);
+    if (!response.ok) {
+        throw new Error('Failed to fetch active users for date');
+    }
+    return response.json();
+};

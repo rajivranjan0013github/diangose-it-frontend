@@ -31,7 +31,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar
 } from 'recharts';
-import { fetchSummary, fetchRecentUsers, fetchPaginatedUsers, PaginatedUsersResponse, fetchUserDetails, sendNotification, sendNotificationByTopic, fetchCases, fetchCategories, fetchCasesByCategory } from './api';
+import { fetchSummary, fetchRecentUsers, fetchPaginatedUsers, PaginatedUsersResponse, fetchUserDetails, sendNotification, sendNotificationByTopic, fetchCases, fetchCategories, fetchCasesByCategory, fetchActiveUsersByDate, ActiveUsersByDateResponse } from './api';
 import { TimeRange, AnalyticsSummary, User, UserDetails, Case, Category, SendNotificationRequest } from './types';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'];
@@ -122,6 +122,12 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [showCaseModal, setShowCaseModal] = useState(false);
+
+  // Active Users by Date Modal state
+  const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
+  const [activeUsersDate, setActiveUsersDate] = useState<string | null>(null);
+  const [activeUsersData, setActiveUsersData] = useState<ActiveUsersByDateResponse | null>(null);
+  const [activeUsersLoading, setActiveUsersLoading] = useState(false);
 
   // Fetch summary data when timeRange changes
   useEffect(() => {
@@ -353,6 +359,30 @@ export default function App() {
     setSelectedCase(null);
   };
 
+  const handleBarClick = async (data: any) => {
+    if (!data || !data.date) return;
+
+    setActiveUsersDate(data.date);
+    setShowActiveUsersModal(true);
+    setActiveUsersLoading(true);
+
+    try {
+      const result = await fetchActiveUsersByDate(data.date);
+      setActiveUsersData(result);
+    } catch (err) {
+      console.error('Failed to fetch active users:', err);
+      setActiveUsersData(null);
+    } finally {
+      setActiveUsersLoading(false);
+    }
+  };
+
+  const handleCloseActiveUsersModal = () => {
+    setShowActiveUsersModal(false);
+    setActiveUsersDate(null);
+    setActiveUsersData(null);
+  };
+
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -555,10 +585,13 @@ export default function App() {
                             fill="#10b981"
                             radius={[4, 4, 0, 0]}
                             animationDuration={1500}
+                            cursor="pointer"
+                            onClick={(data) => handleBarClick(data)}
                           />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    <p className="text-xs text-slate-400 text-center mt-2">Click on a bar to view active users for that day</p>
                   </div>
 
                   {/* Platform Distribution */}
@@ -1465,7 +1498,121 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Active Users by Date Modal */}
+        {showActiveUsersModal && (
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+            onClick={handleCloseActiveUsersModal}
+          >
+            <div
+              className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-t-3xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Active Users
+                    </h2>
+                    <p className="text-sm text-white/80 mt-1">
+                      {activeUsersDate && new Date(activeUsersDate + 'T00:00:00').toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCloseActiveUsersModal}
+                    className="text-white hover:bg-white/20 rounded-full p-1.5 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {activeUsersLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                  </div>
+                ) : activeUsersData && activeUsersData.users.length > 0 ? (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-sm text-slate-600">
+                        <span className="font-bold text-emerald-600">{activeUsersData.count}</span> unique users played on this day
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      {activeUsersData.users.map((user) => (
+                        <div
+                          key={user._id}
+                          className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-emerald-50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            handleCloseActiveUsersModal();
+                            handleUserClick(user._id);
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                              {user.name?.[0] || '?'}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-800">{user.name}</p>
+                              <p className="text-xs text-slate-500">{user.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-emerald-600">{user.gamesPlayedOnDate}</p>
+                              <p className="text-xs text-slate-500">games</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <span className={`text-xs font-bold px-2 py-1 rounded-lg ${user.platform === 'android'
+                                  ? 'bg-emerald-50 text-emerald-600'
+                                  : 'bg-blue-50 text-blue-600'
+                                }`}>
+                                {user.platform === 'android' ? 'Android' : 'iOS'}
+                              </span>
+                              {user.isPremium && (
+                                <span className="flex items-center gap-1 text-xs font-bold text-amber-500">
+                                  <Crown className="w-3 h-3" /> Premium
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <UserX className="w-12 h-12 mb-4" />
+                    <p className="text-lg font-semibold">No active users</p>
+                    <p className="text-sm">No users played games on this day</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 bg-slate-50 p-6 rounded-b-3xl border-t border-slate-200">
+                <button
+                  onClick={handleCloseActiveUsersModal}
+                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold py-2.5 rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
     </div>
   );
 }
