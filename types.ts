@@ -78,6 +78,7 @@ export interface AnalyticsSummary {
   genderSplit: { name: string; value: number }[];
   joinTrend: DailyTrendData[];
   gameplayTrend: DailyTrendData[];
+  quizTrend: DailyTrendData[];
   timezoneDistribution: TimezoneData[];
 }
 

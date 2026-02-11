@@ -25,13 +25,14 @@ import {
   Bell,
   Send,
   Library,
+  HelpCircle,
   Copy
 } from 'lucide-react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar
 } from 'recharts';
-import { fetchSummary, fetchRecentUsers, fetchPaginatedUsers, PaginatedUsersResponse, fetchUserDetails, sendNotification, sendNotificationByTopic, fetchCases, fetchCategories, fetchCasesByCategory, fetchActiveUsersByDate, ActiveUsersByDateResponse } from './api';
+import { fetchSummary, fetchRecentUsers, fetchPaginatedUsers, PaginatedUsersResponse, fetchUserDetails, sendNotification, sendNotificationByTopic, fetchCases, fetchCategories, fetchCasesByCategory, fetchActiveUsersByDate, fetchActiveQuizUsersByDate, ActiveUsersByDateResponse } from './api';
 import { TimeRange, AnalyticsSummary, User, UserDetails, Case, Category, SendNotificationRequest } from './types';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'];
@@ -128,6 +129,7 @@ export default function App() {
   const [activeUsersDate, setActiveUsersDate] = useState<string | null>(null);
   const [activeUsersData, setActiveUsersData] = useState<ActiveUsersByDateResponse | null>(null);
   const [activeUsersLoading, setActiveUsersLoading] = useState(false);
+  const [activeUsersModalType, setActiveUsersModalType] = useState<'simulation' | 'quiz'>('simulation');
 
   // Fetch summary data when timeRange changes
   useEffect(() => {
@@ -362,6 +364,7 @@ export default function App() {
   const handleBarClick = async (data: any) => {
     if (!data || !data.date) return;
 
+    setActiveUsersModalType('simulation');
     setActiveUsersDate(data.date);
     setShowActiveUsersModal(true);
     setActiveUsersLoading(true);
@@ -371,6 +374,25 @@ export default function App() {
       setActiveUsersData(result);
     } catch (err) {
       console.error('Failed to fetch active users:', err);
+      setActiveUsersData(null);
+    } finally {
+      setActiveUsersLoading(false);
+    }
+  };
+
+  const handleQuizBarClick = async (data: any) => {
+    if (!data || !data.date) return;
+
+    setActiveUsersModalType('quiz');
+    setActiveUsersDate(data.date);
+    setShowActiveUsersModal(true);
+    setActiveUsersLoading(true);
+
+    try {
+      const result = await fetchActiveQuizUsersByDate(data.date);
+      setActiveUsersData(result);
+    } catch (err) {
+      console.error('Failed to fetch active quiz users:', err);
       setActiveUsersData(null);
     } finally {
       setActiveUsersLoading(false);
@@ -592,6 +614,63 @@ export default function App() {
                       </ResponsiveContainer>
                     </div>
                     <p className="text-xs text-slate-400 text-center mt-2">Click on a bar to view active users for that day</p>
+                  </div>
+
+                  {/* Quiz Activity Graph */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5 text-indigo-500" />
+                        Quiz Activity
+                      </h3>
+                    </div>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={summary.quizTrend}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="date"
+                            stroke="#94a3b8"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(val) => val.split('-').slice(2).join('/')}
+                            minTickGap={timeRange > 30 ? 40 : 20}
+                          />
+                          <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            cursor={{ fill: '#f8fafc' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-white p-3 rounded-xl shadow-lg border border-slate-100">
+                                    <p className="font-bold text-slate-800 text-xs mb-2">{label}</p>
+                                    <p className="text-sm text-indigo-600">
+                                      <span className="font-bold">{payload[0]?.value}</span> Attempts
+                                    </p>
+                                    <p className="text-sm text-emerald-600">
+                                      <span className="font-bold">{payload[0]?.payload?.uniqueUsers || 0}</span> Unique Users
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar
+                            dataKey="count"
+                            name="Attempts"
+                            fill="#6366f1"
+                            radius={[4, 4, 0, 0]}
+                            animationDuration={1500}
+                            cursor="pointer"
+                            onClick={(data) => handleQuizBarClick(data)}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-slate-400 text-center mt-2">Daily quiz attempts and participation</p>
                   </div>
 
                   {/* Platform Distribution */}
@@ -1510,12 +1589,12 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-t-3xl">
+              <div className={`sticky top-0 bg-gradient-to-r ${activeUsersModalType === 'simulation' ? 'from-emerald-600 to-teal-600' : 'from-indigo-600 to-purple-600'} p-6 rounded-t-3xl`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Users className="w-5 h-5" />
-                      Active Users
+                      {activeUsersModalType === 'simulation' ? <Users className="w-5 h-5" /> : <HelpCircle className="w-5 h-5" />}
+                      {activeUsersModalType === 'simulation' ? 'Active Users (Simulation)' : 'Active Users (Quiz)'}
                     </h2>
                     <p className="text-sm text-white/80 mt-1">
                       {activeUsersDate && new Date(activeUsersDate + 'T00:00:00').toLocaleDateString('en-US', {
@@ -1545,7 +1624,7 @@ export default function App() {
                   <>
                     <div className="mb-4 flex items-center justify-between">
                       <p className="text-sm text-slate-600">
-                        <span className="font-bold text-emerald-600">{activeUsersData.count}</span> unique users played on this day
+                        <span className={`font-bold ${activeUsersModalType === 'simulation' ? 'text-emerald-600' : 'text-indigo-600'}`}>{activeUsersData.count}</span> unique users {activeUsersModalType === 'simulation' ? 'played simulations' : 'attempted quizzes'} on this day
                       </p>
                     </div>
                     <div className="space-y-3">
@@ -1569,13 +1648,13 @@ export default function App() {
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <p className="text-lg font-bold text-emerald-600">{user.gamesPlayedOnDate}</p>
-                              <p className="text-xs text-slate-500">games</p>
+                              <p className={`text-lg font-bold ${activeUsersModalType === 'simulation' ? 'text-emerald-600' : 'text-indigo-600'}`}>{user.gamesPlayedOnDate}</p>
+                              <p className="text-xs text-slate-500">{activeUsersModalType === 'simulation' ? 'sessions' : 'attempts'}</p>
                             </div>
                             <div className="flex flex-col items-end gap-1">
                               <span className={`text-xs font-bold px-2 py-1 rounded-lg ${user.platform === 'android'
-                                  ? 'bg-emerald-50 text-emerald-600'
-                                  : 'bg-blue-50 text-blue-600'
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-blue-50 text-blue-600'
                                 }`}>
                                 {user.platform === 'android' ? 'Android' : 'iOS'}
                               </span>
@@ -1603,7 +1682,7 @@ export default function App() {
               <div className="sticky bottom-0 bg-slate-50 p-6 rounded-b-3xl border-t border-slate-200">
                 <button
                   onClick={handleCloseActiveUsersModal}
-                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold py-2.5 rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className={`w-full bg-gradient-to-r ${activeUsersModalType === 'simulation' ? 'from-emerald-600 to-teal-600' : 'from-indigo-600 to-purple-600'} text-white font-semibold py-2.5 rounded-xl hover:opacity-90 transition-all duration-200 shadow-lg hover:shadow-xl`}
                 >
                   Close
                 </button>

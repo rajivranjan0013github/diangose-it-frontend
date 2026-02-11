@@ -1,6 +1,6 @@
 import { AnalyticsSummary, User, UserDetails, Case, Category, SendNotificationRequest } from './types';
 
-const API_URL = 'http://localhost:3002/api/analytics';
+const API_URL = 'http://localhost:4002/api/analytics';
 
 export const fetchSummary = async (days: number): Promise<AnalyticsSummary> => {
     const response = await fetch(`${API_URL}/summary?days=${days}`);
@@ -145,6 +145,14 @@ export const fetchActiveUsersByDate = async (date: string): Promise<ActiveUsersB
     const response = await fetch(`${API_URL}/gameplays/users-by-date/${date}`);
     if (!response.ok) {
         throw new Error('Failed to fetch active users for date');
+    }
+    return response.json();
+};
+
+export const fetchActiveQuizUsersByDate = async (date: string): Promise<ActiveUsersByDateResponse> => {
+    const response = await fetch(`${API_URL}/quizzes/users-by-date/${date}`);
+    if (!response.ok) {
+        throw new Error('Failed to fetch active quiz users for date');
     }
     return response.json();
 };
