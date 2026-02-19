@@ -26,7 +26,8 @@ import {
   Send,
   Library,
   HelpCircle,
-  Copy
+  Copy,
+  LogOut
 } from 'lucide-react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -82,6 +83,10 @@ const timeAgo = (dateString: string) => {
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('admin_password'));
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState(false);
+
   const [activeTab, setActiveTab] = useState('overview');
   const [timeRange, setTimeRange] = useState<TimeRange>(30);
 
@@ -92,6 +97,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ... (rest of the state variables)
   // Pagination state for User List
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -131,8 +137,25 @@ export default function App() {
   const [activeUsersLoading, setActiveUsersLoading] = useState(false);
   const [activeUsersModalType, setActiveUsersModalType] = useState<'simulation' | 'quiz'>('simulation');
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput.trim()) {
+      localStorage.setItem('admin_password', passwordInput);
+      setIsAuthenticated(true);
+      setAuthError(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_password');
+    setIsAuthenticated(false);
+    window.location.reload();
+  };
+
   // Fetch summary data when timeRange changes
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const loadData = async () => {
       setLoading(true);
       setError(null);
@@ -143,15 +166,69 @@ export default function App() {
         ]);
         setSummary(summaryData);
         setUsers(usersData);
-      } catch (err) {
-        setError('Failed to load analytics data. Make sure the backend is running on port 3002.');
+      } catch (err: any) {
+        if (err.message === 'Unauthorized') {
+          setIsAuthenticated(false);
+          setAuthError(true);
+        } else {
+          setError('Failed to load analytics data. Please ensure the backend is active and reachable.');
+        }
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [timeRange]);
+  }, [timeRange, isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 font-sans p-4">
+        <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8 animate-in fade-in zoom-in duration-300">
+          <div className="flex justify-center mb-8">
+            <div className="bg-indigo-600 p-4 rounded-2xl shadow-xl shadow-indigo-500/20">
+              <Gamepad2 className="w-10 h-10 text-white" />
+            </div>
+          </div>
+
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
+            <p className="text-slate-500">Please enter the admin password to access the dashboard.</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Admin Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className={`w-full bg-slate-50 border ${authError ? 'border-rose-500 ring-rose-500/10' : 'border-slate-200 focus:border-indigo-500 ring-indigo-500/10'} rounded-2xl px-5 py-4 text-slate-800 focus:outline-none focus:ring-4 transition-all`}
+                autoFocus
+              />
+              {authError && (
+                <p className="text-rose-500 text-xs font-bold mt-3 animate-bounce">
+                  Invalid password. Please try again.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all"
+            >
+              Enter Dashboard
+            </button>
+          </form>
+
+          <p className="mt-10 text-center text-xs text-slate-400">
+            Protected personal analytics website &copy; {new Date().getFullYear()}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch paginated users when page changes or tab changes to userlist
   useEffect(() => {
@@ -493,6 +570,15 @@ export default function App() {
                   <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
                 </div>
               </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shadow-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </header>
         )}
